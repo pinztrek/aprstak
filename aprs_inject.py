@@ -12,9 +12,33 @@ import injectCoT
 #import CoT
 
 logging.basicConfig(level=logging.INFO) # level=10
+from sys import version_info
+import json
+from  xml.dom.minidom import parseString
+
+#import xml.etree.ElementTree as ET
+
+# Bail if not python 3 or later
+#if sys.version_info.major < 3:
+if version_info.major < 3:
+    print("Must use python 3 or later")
+    exit()
+
+
+#import takcot. Note this only works if you have installed the package
+#   If you have not installed as a package, you may have to tune your imports
+#   to be local to where your source is
+from takpak.mkcot import mkcot
+from takpak.takcot import takcot
+
+
+sleeptime = 0.075
+aprs_reportsmax = 500
+aprs_reportsmax = 10000
 
 # Filter values for the APRS Feed
 filter_range = "1200"
+filter_range = "300"
 # Atlanta (SE US)
 filter_lat = "33.98"
 filter_lon = "-84.650"
@@ -22,9 +46,6 @@ filter_lon = "-84.650"
 #filter_lat = "39.8283"
 #filter_lon = "-98.5795"
 filter_type = " -t/oimqstunw"
-
-sleeptime = 0.075
-aprs_reportsmax = 500
 
 # Setup the filter string
 
@@ -43,80 +64,97 @@ aprs_password = "-1"
 #host = "noam.aprs2.net"
 #port = "14580"
 
-ATAK_IP = '172.16.30.30'
-ATAK_PORT = 8087
+# Setup Logging
+LOGGERFORMAT = '%(asctime)s %(message)s'
+logging.basicConfig(
+    format=LOGGERFORMAT
+    #, level=logging.INFO
+    , datefmt='%m/%d/%Y %I:%M:%S')
+logger = logging.getLogger(__name__)
 
-#ATAK_IP = os.getenv('ATAK_IP', '204.48.30.216')
-#ATAK_PORT = int(os.getenv('ATAK_PORT', '8087'))
+# Select a logging level
+#logger.setLevel(logging.INFO)
+#logger.setLevel(logging.DEBUG)
+DEFAULT_LEVEL = logging.INFO
+#DEFAULT_LEVEL = logging.DEBUG
+logger.setLevel(DEFAULT_LEVEL)
+
+# select a server, default to local
+server = input('Server? local is default, "FTS" or "DISCORD" uses those public servers: ')
+server = server.upper()
+
+if server.startswith("F"):
+    TAK_IP = os.getenv('TAK_IP', '204.48.30.216')
+    TAK_PORT = int(os.getenv('TAK_PORT', '8087'))
+    server = "FTS"
+
+elif server.startswith("D"):
+    TAK_IP = os.getenv('TAK_IP', '128.199.70.11')
+    TAK_PORT = 48088
+    server = "DISCORD"
+else:
+    # use the local server for default
+    TAK_IP = '172.16.30.30'
+    TAK_PORT = 8087
+    server = "Local"
+
+logger.debug(server + " Server selected " + TAK_IP + ":" + str(TAK_PORT))
+
+#open the users list
+userfile = 'users.json'
+try:
+    f = open(userfile, "r+")
+    try:
+        users = json.load(f)
+        logger.info("Initial Users loaded")
+        logger.debug(users)
+    except:
+        logger.warning("users json load failed")
+        users = []
+    finally:
+        f.close()
+except:
+    users = []
+    logger.warning("Users file open failed, resetting")
 
 # initialize aprs_reports
 aprs_reports = 1
 
 
-def openTCP(ip_address, port):
-    print("Opening:" + ip_address + ":" + str(port))
-    try:
-        mysock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        conn = mysock.connect((ip_address, port))
-    except:
-        print("Cannot connect to " + str(ip_address) + ":" + str(port))
-        mysock = 0
-        #exit()
-    return mysock
-    
-def closeTCP(mysock):
-    try:
-        closereturn = mysock.shutdown(1)
-        time.sleep(0.2)
-        closereturn = mysock.close()
-    except:
-        closereturn = 0
-        print("Socket Close failed")
-    return closereturn
-
-def pushTCP(mysock, cotdata):
-    #cotdata =  b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<event version="2.0" uid="Bogon-H5NPCV052844VSE" type="a-f-G-E-V-C" time="2020-07-15T13:53:32.463Z" start="2020-07-15T13:53:32.463Z" stale="2020-07-15T13:59:47.463Z" how="h-g-i-g-o"><point lat="0.0" lon="0.0" hae="9999999.0" ce="9999999.0" le="9999999.0"/><detail><takv device="ASUS P027" platform="ATAK-CIV" os="24" version="4.0.0.7 (7939f102).1592931989-CIV"/><contact endpoint="*:-1:stcp" callsign="Bogon-1"/><uid Droid="Bogon-1"/><__group name="Dark Green" role="Team Member"/><status battery="100"/><track speed="0.0" course="74.30885078798654"/></detail></event>'
-    #print(cotdata)
-    sentdata=""
-    try:
-        sentdata = mysock.send(cotdata)
-        #print("sent")
-    except:
-        print("push_tcp: Send data failed")
-        return 0
-    try:
-        mysock.settimeout(1)
-        rcvdata = mysock.recv(2048)
-        #print("pushTCP Rcv Data:" + str(rcvdata))
-    except:
-        print("push_tcp: Rcv data failed")
-        return 0
-        
-    time.sleep(sleeptime) # was 0.2 
-    return sentdata
-    
-
 def callback(packet):
     global aprs_reports
     global aprs_reportsmax
     global lastcycle
-    global sock
+    global taksock
 
-    #print(packet)
+    #if PAUSE:
+    #    return()
+
+    #logger.debug("Callback: " + str(packet))
+    #logger.setLevel(logging.WARNING)
+    logger.setLevel(DEFAULT_LEVEL)
     try: 
         aprs_atoms = aprslib.parse(packet)
-        if (aprs_atoms["format"] == "beacon"):
+        aprs_format = aprs_atoms["format"]
+        logger.debug("APRS format: " + str(aprs_format))
+        if (aprs_format == "beacon"):
             #print("beacon skipped:" + str(packet))
+            aprs_source = ""
             pass # Skip the rest
+            return
 
         else:    
             #print(aprs_atoms)
-            aprs_source = aprs_atoms["from"]
+            try:
+                aprs_source = aprs_atoms["from"]
+            except:
+                logger.debug("No APRS From")
+                aprs_source = ""
             try:
                 aprs_lat = str(round(aprs_atoms["latitude"],5))
                 aprs_lon = str(round(aprs_atoms["longitude"],5))
             except:
-                print(aprs_source + " No Lat/Lon")
+                logger.debug(aprs_source + " No Lat/Lon")
                 aprs_lat = ""
                 aprs_lon = ""
                 next
@@ -128,101 +166,202 @@ def callback(packet):
             except:
                 #print("No Altitude")
                 aprs_alt = "9999999.0"
+
+            # placeholders
+            #aprs_speed = 0
+            #aprs_course = 0
+                    
             #print(aprs_source + " " + str(aprs_lat) + " " + str(aprs_lon) + " " + str(aprs_alt))
-            if sleeptime > 0.1:
-                print(aprs_source 
+            #if sleeptime > 0.1:
+            if True and aprs_source:
+                #print("Log the report")
+                logger.info(aprs_source 
                     + " Lat:" + aprs_lat + " Lon:" + aprs_lon + " Alt:" + aprs_alt
                     #+ " Speed:" + aprs_speed + " Course:" + aprs_course 
                     + " Counter: " + str(aprs_reports)
                     )
-            else:
+            elif aprs_source:
+                logger.debug(aprs_source 
+                    + " Lat:" + aprs_lat + " Lon:" + aprs_lon + " Alt:" + aprs_alt
+                    #+ " Speed:" + aprs_speed + " Course:" + aprs_course 
+                    + " Counter: " + str(aprs_reports)
+                    )
                 if int(aprs_reports % 10) == 0:
                     print("+", end="", flush=True)
                 else:
                     #print(".", end="", flush=True)
                     pass
-                    
-            cot_xml = injectCoT.inject_cot(aprs_source, aprs_lat, aprs_lon, aprs_alt)
-            #print("cot_xml is:" + str(cot_xml))
-            sent = pushTCP(sock,cot_xml)
-            if sent == 0:
-                print("Push TCP failed- sent was zero")
-                # force socket reopen
-                aprs_reports = 9999999
-            
-            if aprs_reports >= aprs_reportsmax:
-                #print("aprs_reports:" + str(aprs_reports))
-                cycletime = int(time.time() - lastcycle)
-                lastcycle = time.time()
-                print()
-                print( "Close and Reopen the TAK connection " + str(aprs_reports) + " reports "
-                    + time.strftime("%d/%m/%y %H:%M:%S ", time.gmtime()))
-                #print( "Close and Reopen the TAK connection " )
-                #print( str(aprs_reportsmax / cycletime ) + " Reports / sec")
-                print( str(round(aprs_reportsmax / cycletime, 2 )) + " Reports / sec")
-                closeTCP(sock) 
-                #print( "FTS server socket closed")
-                print("Reopen the socket")
-                sock = 0
-                while sock == 0:
-                    print( "Trying to reopen FTS server socket")
-                    sock = openTCP(ATAK_IP, ATAK_PORT)
-                    if sock == 0:
-                        print("reopen failed")
-                        time.sleep(57)
-                print( "FTS server socket reopened")
-                # Do a fake connect string
-                #cot_xml =  b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<event version="2.0" uid="Bogon-H5NPCV052844VSE" type="a-f-G-E-V-C" time="2020-07-15T13:53:32.463Z" start="2020-07-15T13:53:32.463Z" stale="2020-07-15T13:59:47.463Z" how="h-g-i-g-o"><point lat="0.0" lon="0.0" hae="9999999.0" ce="9999999.0" le="9999999.0"/><detail><takv device="ASUS P027" platform="ATAK-CIV" os="24" version="4.0.0.7 (7939f102).1592931989-CIV"/><contact endpoint="*:-1:stcp" callsign="Bogon-1"/><uid Droid="Bogon-1"/><__group name="Dark Green" role="Team Member"/><status battery="100"/><track speed="0.0" course="74.30885078798654"/></detail></event>'
-                cot_xml =  connect_xml
-                pushTCP(sock,cot_xml)
-                aprs_reports = 0
-            aprs_reports += 1
-                
-            #print("tcp sent")
-            #input()
-
+            else:
+                logger.debug("APRS not useful")
 
     except (aprslib.ParseError, aprslib.UnknownFormat) as exp:
-        #print("parse failed:" + str(packet))
+        logger.debug("APRS parse failed:" + str(packet))
+        aprs_source = ""
         pass
+        #return 0 
 
     except:
-        #print("parse failed other error:" + str(packet))
+        logger.debug("APRS parse failed other error:" + str(packet))
+        aprs_source = ""
         pass
+        #return 0 
+
+    #logger.setLevel(logging.DEBUG)
+    logger.setLevel(DEFAULT_LEVEL)
+    try:
+            if False:
+                aprs_uid=user_uid
+            else:
+                aprs_uid=aprs_source + str(uuid.uuid1())
+
+            #cot_xml = injectCoT.inject_cot(aprs_source, aprs_lat, aprs_lon, aprs_alt)
+            if aprs_source and aprs_lat and aprs_lon:
+                cot_xml = mkcot.mkcot(
+                    cot_callsign=aprs_source
+                    , cot_id=aprs_uid
+                    , cot_lat=aprs_lat
+                    , cot_lon=aprs_lon
+                    , cot_hae=aprs_alt
+                    , cot_how="h-g-i-g-o"
+                    #, cot_type="a" # not needed, default
+                    , cot_identity="friend"
+                    , cot_dimension="land-unit"
+                    , cot_typesuffix="E-C-V"
+                    )
+            else:
+                logger.info("Not useful APRS: " + packet)
+                pass
+    except:
+        logger.debug("mkcot failed")
+        #logger.info("mkcot failed: " +packet)
+        cot_xml=""
+        #return 0 
+
+    if cot_xml:
+        try:
+            my_xml = cot_xml.decode('utf-8')
+            my_xml = parseString(str(my_xml.replace("\n","")))
+            xml_pretty_str = my_xml.toprettyxml()
+
+            logger.debug("CoT: " + aprs_source)
+            logger.debug("CoT XML is: " + xml_pretty_str)
+        except:
+            cot_xml=""
+            logger.debug("XML parse failed")
+            #return 0 
+
+    logger.setLevel(logging.DEBUG)
+    if cot_xml:
+        try:
+
+            # flush any pending server responses
+            takserver.flush()
+
+            # send the CoT string, server does not echo
+            takserver.send(cot_xml)
+
+            # flush any server responses
+            takserver.flush()
+
+        except:
+             logger.warning("APRS CoT push to server failed")
+
+
+    #logger.debug("End of callback processing -----------------------------------")
+    if aprs_reports >= aprs_reportsmax:
+        try:    
+            #print("aprs_reports:" + str(aprs_reports))
+            cycletime = int(time.time() - lastcycle)
+            lastcycle = time.time()
+            logger.debug( "Close and Reopen the TAK connection " + str(aprs_reports) + " reports "
+                + time.strftime("%d/%m/%y %H:%M:%S ", time.gmtime()))
+            #print( "Close and Reopen the TAK connection " )
+            #print( str(aprs_reportsmax / cycletime ) + " Reports / sec")
+            logger.debug( str(round(aprs_reportsmax / cycletime, 2 )) + " Reports / sec")
+
+        except:
+            logger.debug("Reopen Stat Calc failed")
+            
+        try:
+            logger.debug("Attempting Close")
+            takserver.close()
+            print( "FTS server socket closed")
+            time.sleep(0.5)
+        except:
+            logger.warning(server + " close failed")
+            pass
+
+        logger.debug("Opening TAK Server " + server + "- " + TAK_IP + ":" + TAK_PORT)
+        try:
+            # Now open server
+            testsock = takserver.open(TAK_IP,TAK_PORT)
+
+            logger.debug("send a takserver connect")
+            takserver.flush()  # flush the xmls the server sends (should not be any)
+
+            # send the connect string, server does not echo
+            connect_xml= mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign)
+            print(connect_xml)
+            #takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+            takserver.send(connect_xml)
+
+            logger.info("Server " + server + " connected")
+        except:
+            logger.warning(server + " Reopen failed")
+
+    aprs_reports += 1
+                
+
+
 #-----------------------------------------------------------------------------------------
 # Main Program
 
 # Setup a UID
 my_uid = str(socket.getfqdn())
 my_uid = my_uid + "-" + str(uuid.uuid1())
-my_uid = bytes("APRS_inject-" + my_uid,"UTF-8")
-print(my_uid)
+#my_uid = bytes("APRS_inject-" + my_uid,"UTF-8")
+my_uid = ("APRS_inject-" + my_uid)
+#print(my_uid)
+
+taksock="" # this is a global
 
 # Setup a callsign for the main process
-my_callsign = bytes("APRS-", "UTF-8") + my_uid[-6:]
-print(my_callsign)
+my_callsign = "APRS-" + my_uid[-6:]
+logger.debug("Callsign: " + str(my_callsign))
 
-# get a time, does not really matter
-xml_time = bytes(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),"UTF-8")
+# substantiate the class
+takserver = takcot()
 
-# XML strings for the healthcheck
-connect_xml = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<event version="2.0" uid="' + my_uid + b'" type="t-x-c-t" time="' + xml_time + b'" start="' + xml_time + b'" stale="'+ xml_time + b'" how="h-g-i-g-o"><point lat="0.0" lon="0.0" hae="9999999.0" ce="9999999.0" le="9999999.0"/><detail><takv platform="APRS_inject" os="24" version="1.0.0.0"/><contact endpoint="*:-1:stcp" callsign="' + my_callsign + b'"/><__group name="Dark Green" role="Team Member"/></detail></event>'
-print(connect_xml)
+# Now open server
+logger.debug("Opening TAK Server " + server + "----------------------------------------------------")
+testsock = takserver.open(TAK_IP,TAK_PORT)
+
+logger.debug("send a takserver connect")
+takserver.flush()  # flush the xmls the server sends (should not be any)
+
+#connect_xml = mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", ", cot_callsign=my_callsign)
+
+#my_xml = connect_xml.decode('utf-8')
+#my_xml = parseString(str(my_xml.replace("\n","")))
+#xml_pretty_str = my_xml.toprettyxml()
+
+#logger.debug("Connect XML is: " + xml_pretty_str)
+
+# send the connect string, server does not echo
+takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+
+logger.info("Server " + server + " connected")
 
 # Now open the socket the ATAK Server
-sock = 0
-while sock == 0:
-    print("Opening TAK Server")
-    sock = openTCP(ATAK_IP, ATAK_PORT)
+#sock = 0
+#while sock == 0:
+    #print("Opening TAK Server")
+    #sock = openTCP(ATAK_IP, ATAK_PORT)
     # Sleep for a bit if the open failed
-    if sock == 0:
-        time.sleep(57)
+    #if sock == 0:
+        #time.sleep(57)
     
 
-# Send a connect string
-cot_xml = connect_xml
-pushTCP(sock,cot_xml)
-print("Opened TAK Server" + str(sock))
 lastcycle = time.time()
 
 while True:
@@ -248,8 +387,10 @@ while True:
     try:
         # Setup callback for APRS Packets
         AIS.consumer(callback, raw=True)
+        logger.debug("AIS Consumer exited")
     except:
         print("APRS consumer failed")
 
         # Sleep for a bit if failed
+        exit()
         time.sleep(11)
