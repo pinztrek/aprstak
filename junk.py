@@ -1,5 +1,6 @@
 #!/usr/bin/python -u
 
+import aprslib
 import logging
 import time
 #from time import sleep,gmtime,strftime
@@ -7,12 +8,11 @@ import os
 import socket
 import uuid
 
+#import CoT
 
 from sys import version_info
 import json
 from  xml.dom.minidom import parseString
-
-import aprslib
 
 #import xml.etree.ElementTree as ET
 
