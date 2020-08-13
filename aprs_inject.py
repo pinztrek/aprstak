@@ -11,7 +11,6 @@ import uuid
 import injectCoT
 #import CoT
 
-logging.basicConfig(level=logging.INFO) # level=10
 from sys import version_info
 import json
 from  xml.dom.minidom import parseString
@@ -24,6 +23,20 @@ if version_info.major < 3:
     print("Must use python 3 or later")
     exit()
 
+# Setup Logging
+DEFAULT_LEVEL = logging.INFO
+#DEFAULT_LEVEL = logging.DEBUG
+
+LOGGERFORMAT = '%(asctime)s %(message)s'
+logging.basicConfig(
+    format=LOGGERFORMAT
+    , level=logging.INFO
+    , datefmt='%m/%d/%Y %I:%M:%S')
+
+logger = logging.getLogger(__name__)
+
+# Seset the default logging level
+logger.setLevel(DEFAULT_LEVEL)
 
 #import takcot. Note this only works if you have installed the package
 #   If you have not installed as a package, you may have to tune your imports
@@ -64,20 +77,6 @@ aprs_password = "-1"
 #host = "noam.aprs2.net"
 #port = "14580"
 
-# Setup Logging
-LOGGERFORMAT = '%(asctime)s %(message)s'
-logging.basicConfig(
-    format=LOGGERFORMAT
-    #, level=logging.INFO
-    , datefmt='%m/%d/%Y %I:%M:%S')
-logger = logging.getLogger(__name__)
-
-# Select a logging level
-#logger.setLevel(logging.INFO)
-#logger.setLevel(logging.DEBUG)
-DEFAULT_LEVEL = logging.INFO
-#DEFAULT_LEVEL = logging.DEBUG
-logger.setLevel(DEFAULT_LEVEL)
 
 # select a server, default to local
 server = input('Server? local is default, "FTS" or "DISCORD" uses those public servers: ')
