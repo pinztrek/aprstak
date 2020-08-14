@@ -45,8 +45,7 @@ from takpak.takcot import takcot
 
 
 sleeptime = 0.075
-aprs_reportsmax = 500
-aprs_reportsmax = 3
+aprs_reportsmax = 1000
 
 # Filter values for the APRS Feed
 filter_range = "1200"
@@ -196,13 +195,13 @@ def callback(packet):
         logger.debug("APRS parse failed:" + str(packet))
         aprs_source = ""
         pass
-        #return 0 
+        return 
 
     except:
         logger.debug("APRS parse failed other error:" + str(packet))
         aprs_source = ""
         pass
-        #return 0 
+        return 
 
     #logger.setLevel(logging.DEBUG)
     logger.setLevel(DEFAULT_LEVEL)
@@ -233,7 +232,7 @@ def callback(packet):
         logger.debug("mkcot failed")
         #logger.info("mkcot failed: " +packet)
         cot_xml=""
-        #return 0 
+        return  
 
     if cot_xml:
         try:
@@ -246,9 +245,9 @@ def callback(packet):
         except:
             cot_xml=""
             logger.debug("XML parse failed")
-            #return 0 
+            return 
 
-    logger.setLevel(logging.DEBUG)
+    #logger.setLevel(logging.DEBUG)
     if cot_xml:
         try:
 
@@ -265,8 +264,11 @@ def callback(packet):
              logger.warning("APRS CoT push to server failed")
 
 
+    # Increment the report count            
+    aprs_reports += 1
+
     #logger.debug("End of callback processing -----------------------------------")
-    if aprs_reports >= aprs_reportsmax:
+    if aprs_reports > aprs_reportsmax:
         try:    
             #print("aprs_reports:" + str(aprs_reports))
             cycletime = int(time.time() - lastcycle)
@@ -281,35 +283,35 @@ def callback(packet):
             logger.debug("Reopen Stat Calc failed")
             
         try:
-            logger.debug("Attempting Close")
             takserver.close()
-            print( "FTS server socket closed")
             time.sleep(0.5)
+            logger.debug(server + " Closed")
         except:
             logger.warning(server + " close failed")
             pass
 
-        #logger.debug("Opening TAK Server " + server + "- " + TAK_IP + ":" + TAK_PORT)
+        logger.debug("Opening TAK Server " + server + " " + TAK_IP + ":" + str(TAK_PORT))
         try:
             # Now open server
-            testsock = takserver.open("172.16.30.30",8087)
-            #testsock = takserver.open(TAK_IP,TAK_PORT)
+            try:
+                testsock = takserver.open(TAK_IP,TAK_PORT)
+            except:
+                logger.warning(server + " reopen failed")
 
             logger.debug("send a takserver connect")
-            takserver.flush()  # flush the xmls the server sends (should not be any)
+            try:
+                takserver.flush()  # flush the xmls the server sends (should not be any)
 
-            # send the connect string, server does not echo
-            connect_xml= mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign)
-            print(connect_xml)
-            #takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
-            takserver.send(connect_xml)
+                # send the connect string, server does not echo
+                takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+                logger.info("Server " + server + " reconnected -------------------------------------")
+                aprs_reports = 1
+            except:
+                logger.info("Server " + server + " connect failed")
 
-            logger.info("Server " + server + " connected")
         except:
             logger.warning(server + " Reopen failed")
 
-    aprs_reports += 1
-                
 
 
 #-----------------------------------------------------------------------------------------
@@ -347,31 +349,27 @@ takserver.flush()  # flush the xmls the server sends (should not be any)
 #logger.debug("Connect XML is: " + xml_pretty_str)
 
 # send the connect string, server does not echo
-takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+try:
+    takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+except:
+    logger.error("Connect to TAK server failed")
+    exit(1)
 
-logger.info("Server " + server + " connected")
+logger.info("TAK Server connected: " + server + " " + TAK_IP + ":" + str(TAK_PORT) )
 
-# Now open the socket the ATAK Server
-#sock = 0
-#while sock == 0:
-    #print("Opening TAK Server")
-    #sock = openTCP(ATAK_IP, ATAK_PORT)
-    # Sleep for a bit if the open failed
-    #if sock == 0:
-        #time.sleep(57)
-    
 
 lastcycle = time.time()
 
 while True:
     try:
-        print("Connecting to APRS.is")
+        logger.debug("Connecting to APRS.is")
         # Setup APRS Connection and connect
         # host should be rotate.aprs.net or similar
         AIS = aprslib.IS(aprs_user, passwd=aprs_password, host="second.aprs.net", port=14580)
         AIS.connect()
+        logger.info("Connected to APRS.is")
     except:
-        print("APRS Connect failed")
+        logger.error("APRS Connect failed")
         # Sleep for a bit if failed
         time.sleep(57)
         break
@@ -380,7 +378,7 @@ while True:
     try:
         AIS.set_filter(filter_text)
     except:
-        print("APRS filter failed")
+        logger.error("APRS filter failed")
         break
 
     try:
