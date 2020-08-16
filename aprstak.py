@@ -27,7 +27,8 @@ if version_info.major < 3:
 DEFAULT_LEVEL = logging.WARNING
 
 #LOGGERFORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-LOGGERFORMAT = '%(asctime)s %(levelname)s: %(message)s'
+#LOGGERFORMAT = '%(asctime)s %(levelname)s: %(message)s'
+LOGGERFORMAT = '%(levelname)s: %(message)s'
 logging.basicConfig(
     level=logging.INFO
     , format=LOGGERFORMAT
