@@ -62,9 +62,6 @@ filter_type = " -t/oimqstunw"
 # Eastern US
 #filter_text="a/66/-98.6/20/70" + filter_type
 
-# APRS Login info, -1 for password means read only
-aprs_user = "KM4BA-TS"
-aprs_password = "-1"
 
 # APRS server, should use the load balancing ones
 #host = "noam.aprs2.net"
@@ -223,28 +220,6 @@ def callback(packet):
             #aprs_speed = 0
             #aprs_course = 0
                     
-            #print(aprs_source + " " + str(aprs_lat) + " " + str(aprs_lon) + " " + str(aprs_alt))
-            #if sleeptime > 0.1:
-            if True and aprs_source:
-                #print("Log the report")
-                logger.info(aprs_source 
-                    + " Lat:" + aprs_lat + " Lon:" + aprs_lon + " Alt:" + aprs_alt
-                    #+ " Speed:" + aprs_speed + " Course:" + aprs_course 
-                    + " Counter: " + str(aprs_reports)
-                    )
-            elif aprs_source:
-                logger.debug(aprs_source 
-                    + " Lat:" + aprs_lat + " Lon:" + aprs_lon + " Alt:" + aprs_alt
-                    #+ " Speed:" + aprs_speed + " Course:" + aprs_course 
-                    + " Counter: " + str(aprs_reports)
-                    )
-                if int(aprs_reports % 10) == 0:
-                    print("+", end="", flush=True)
-                else:
-                    #print(".", end="", flush=True)
-                    pass
-            else:
-                logger.debug("APRS not useful")
 
     except (aprslib.ParseError, aprslib.UnknownFormat) as exp:
         logger.debug("APRS parse failed:" + str(packet))
@@ -260,17 +235,45 @@ def callback(packet):
 
     #logger.setLevel(logging.DEBUG)
     logger.setLevel(DEFAULT_LEVEL)
+    # Now try to make the CoT -------------------------------------------
     try:
-            if False:
-                aprs_uid=user_uid
+        if aprs_source and aprs_lat and aprs_lon:
+            # see if it's a real user
+            #if aprs_source.startswith("K"):
+            #    aprs_source = "KM4BA"
+            if aprs_source in (x[0] for x in users):
+                logger.debug("User " + aprs_source + " found in users list")
+                for i in range(0,len(users)):
+                    logger.debug("checking: " + users[i][0] + " " + users[i][1] + " " +  users[i][2])
+                    if users[i][0] == aprs_source:
+                        aprs_uid = users[i][1]
+                        aprs_team = users[i][2]
+                        aprs_icon = ""
+                        aprs_point = False
+                        logger.debug("Match: " + aprs_source + " " + aprs_uid + " " +  aprs_team)
+                        break
+                    else:
+                        #logger.debug("User: " + users[i][0] + " not found")
+                        pass
+                logger.debug("User: " + aprs_source + " " + aprs_uid + " " +  aprs_team + " ---------")
             else:
-                aprs_uid=aprs_source + str(uuid.uuid1())
+                # not a real user, so set an icon instead
+                #aprs_uid=aprs_source + str(uuid.uuid1())
+                aprs_uid=aprs_source
+                #aprs_team="Cyan"
+                #aprs_source=""
+                aprs_team =""
+                aprs_icon ='f7f71666-8b28-4b57-9fbb-e38e61d33b79/Google/placemark_circle.png'
+                aprs_point = True
+                logger.debug("station: " + aprs_source + " " + aprs_uid + " " +  aprs_team + " ---------")
 
             #cot_xml = injectCoT.inject_cot(aprs_source, aprs_lat, aprs_lon, aprs_alt)
-            if aprs_source and aprs_lat and aprs_lon:
+            try:
+                # create the CoT from the info
                 cot_xml = mkcot.mkcot(
                     cot_callsign=aprs_source
                     , cot_id=aprs_uid
+                    , team_name=aprs_team
                     , cot_lat=aprs_lat
                     , cot_lon=aprs_lon
                     , cot_hae=aprs_alt
@@ -279,13 +282,16 @@ def callback(packet):
                     , cot_identity="friend"
                     , cot_dimension="land-unit"
                     , cot_typesuffix="E-C-V"
+                    , iconpath=aprs_icon
+                    , cot_point=aprs_point
                     )
-            else:
-                logger.info("Not useful APRS: " + packet)
-                pass
+            except:
+                logger.debug("mkcot failed")
+        else:
+            logger.info("Not useful APRS: " + packet)
+            pass
     except:
-        logger.debug("mkcot failed")
-        #logger.info("mkcot failed: " +packet)
+        logger.debug("CoT creation failed: " +packet)
         cot_xml=""
         return  
 
@@ -314,6 +320,24 @@ def callback(packet):
 
             # flush any server responses
             takserver.flush()
+
+            # Now log the report by type
+            #if sleeptime > 0.1:
+            if True and aprs_source and aprs_lat and aprs_lon:
+                if aprs_point:
+                    logger.info("Station: " + aprs_source 
+                        + " Lat:" + aprs_lat + " Lon:" + aprs_lon + " Alt:" + aprs_alt
+                        #+ " Speed:" + aprs_speed + " Course:" + aprs_course 
+                        + " Counter: " + str(aprs_reports)
+                        )
+                else:
+                    logger.info("User:    " +  aprs_source 
+                        + " Lat:" + aprs_lat + " Lon:" + aprs_lon + " Alt:" + aprs_alt
+                        #+ " Speed:" + aprs_speed + " Course:" + aprs_course 
+                        + " Counter: " + str(aprs_reports)
+                        )
+            else:
+                logger.debug("APRS not useful")
 
         except:
              logger.warning("APRS CoT push to server failed")
