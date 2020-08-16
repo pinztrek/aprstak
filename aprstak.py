@@ -26,10 +26,11 @@ if version_info.major < 3:
 # Setup Logging
 DEFAULT_LEVEL = logging.WARNING
 
-LOGGERFORMAT = '%(asctime)s %(message)s'
+#LOGGERFORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
+LOGGERFORMAT = '%(asctime)s %(levelname)s: %(message)s'
 logging.basicConfig(
-    format=LOGGERFORMAT
-    , level=logging.INFO
+    level=logging.INFO
+    , format=LOGGERFORMAT
     , datefmt='%m/%d/%Y %I:%M:%S')
 
 logger = logging.getLogger(__name__)
@@ -110,10 +111,10 @@ for opt, arg in opts:
         DEFAULT_LEVEL = logging.DEBUG
         logger.setLevel(DEFAULT_LEVEL)
     elif opt == "--debug":
-        if arg == "DEBUG":
+        if arg.upper() == "DEBUG":
             logger.debug("DEBUG selected")
             DEFAULT_LEVEL = logging.DEBUG
-        elif arg == "INFO":
+        elif arg.upper() == "INFO":
             logger.debug("INFO selected")
             DEFAULT_LEVEL = logging.INFO
         logger.setLevel(DEFAULT_LEVEL)
@@ -304,12 +305,16 @@ def callback(packet):
 
     if cot_xml:
         try:
-            my_xml = cot_xml.decode('utf-8')
-            my_xml = parseString(str(my_xml.replace("\n","")))
-            xml_pretty_str = my_xml.toprettyxml()
+            if logger.level <= logging.DEBUG:
+                my_xml = cot_xml.decode('utf-8')
+                my_xml = parseString(str(my_xml.replace("\n","")))
+                xml_pretty_str = my_xml.toprettyxml()
 
-            logger.debug("CoT: " + aprs_source)
-            logger.debug("CoT XML is: " + xml_pretty_str)
+                logger.debug("CoT: " + aprs_source)
+                logger.debug("CoT XML is: " + xml_pretty_str)
+                #if not aprs_point:
+                #    logger.warning("CoT XML is: " + xml_pretty_str)
+                
         except:
             cot_xml=""
             logger.debug("XML parse failed")
@@ -343,6 +348,7 @@ def callback(packet):
                         #+ " Speed:" + aprs_speed + " Course:" + aprs_course 
                         + " Counter: " + str(aprs_reports)
                         )
+                    #logger.warning(cot_xml)
             else:
                 logger.debug("APRS not useful")
 
@@ -359,11 +365,16 @@ def callback(packet):
             #print("aprs_reports:" + str(aprs_reports))
             cycletime = int(time.time() - lastcycle)
             lastcycle = time.time()
-            logger.warning( "Close and Reopen the TAK connection " + str(aprs_reports) + " reports "
-                + time.strftime("%d/%m/%y %H:%M:%S ", time.gmtime()))
+            logger.warning( "Close and Reopen the TAK connection " 
+                + str(aprs_reports - 1 ) + " reports "
+                #+ time.strftime("%d/%m/%y %H:%M:%S ", time.gmtime())
+                )
             #print( "Close and Reopen the TAK connection " )
             #print( str(aprs_reportsmax / cycletime ) + " Reports / sec")
-            logger.warning( str(round(aprs_reportsmax / cycletime, 2 )) + " Reports / sec")
+            logger.warning( str(round(aprs_reportsmax / cycletime, 2 )) 
+                + " Reports / sec " 
+                #+ aprs_reportsmax + " reports"
+                )
 
         except:
             logger.debug("Reopen Stat Calc failed")
@@ -426,17 +437,18 @@ testsock = takserver.open(TAK_IP,TAK_PORT)
 logger.debug("send a takserver connect")
 takserver.flush()  # flush the xmls the server sends (should not be any)
 
-#connect_xml = mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", ", cot_callsign=my_callsign)
+connect_xml = mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign)
 
-#my_xml = connect_xml.decode('utf-8')
-#my_xml = parseString(str(my_xml.replace("\n","")))
-#xml_pretty_str = my_xml.toprettyxml()
+my_xml = connect_xml.decode('utf-8')
+my_xml = parseString(str(my_xml.replace("\n","")))
+xml_pretty_str = my_xml.toprettyxml()
 
-#logger.debug("Connect XML is: " + xml_pretty_str)
+logger.debug("Connect XML is: " + xml_pretty_str)
 
 # send the connect string, server does not echo
 try:
-    takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+    #takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+    takserver.send(connect_xml)
 except:
     logger.error("Connect to TAK server failed")
     exit(1)
