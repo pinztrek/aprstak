@@ -85,13 +85,14 @@ aprs_password = "-1"
 
 
 server = ""
+userdir = ""
 #debug = False
 # get the args
 argv=sys.argv[1:]
 
 # now parse
 try:
-    opts, args = getopt.getopt(argv,"lfdD",["debug=","max=","range=","eastus"])
+    opts, args = getopt.getopt(argv,"lfdD",["debug=","max=","range=","eastus","userdir="])
 except getopt.GetoptError:
     print ('aprstak.py -l or -f or -d')
     sys.exit(2)
@@ -119,12 +120,14 @@ for opt, arg in opts:
     elif opt == "--max" and int(arg) > 0:
         aprs_reportsmax = int(arg)
     elif opt == "--range" and int(arg) > 0:
-        filter_range = int(arg)
+        filter_range = arg
         logger.debug("Filter range set to: " + arg)
         filter_text="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + filter_type
     elif opt == "--eastus":
         filter_text = filter_text_eus
         logger.debug("Filter to: " + filter_text)
+    elif opt == "--userdir":
+        userdir = arg
 
 if not server:
     # select a server, default to local
@@ -150,12 +153,15 @@ logger.debug(server + " Server selected " + TAK_IP + ":" + str(TAK_PORT))
 
 
 #open the users list
-userfile = 'users.json'
+userfile = "users.json"
+if userdir:
+    userfile = userdir + "/" + userfile
+    logger.warning("userfile is " + userfile)
 try:
     f = open(userfile, "r+")
     try:
         users = json.load(f)
-        logger.info("Initial Users loaded")
+        logger.warning("Initial Users loaded")
         logger.debug(users)
     except:
         logger.warning("users json load failed")
@@ -277,6 +283,7 @@ def callback(packet):
                     , cot_lat=aprs_lat
                     , cot_lon=aprs_lon
                     , cot_hae=aprs_alt
+                    , cot_stale=10
                     , cot_how="h-g-i-g-o"
                     #, cot_type="a" # not needed, default
                     , cot_identity="friend"
@@ -331,7 +338,7 @@ def callback(packet):
                         + " Counter: " + str(aprs_reports)
                         )
                 else:
-                    logger.info("User:    " +  aprs_source 
+                    logger.warning("User:    " +  aprs_source 
                         + " Lat:" + aprs_lat + " Lon:" + aprs_lon + " Alt:" + aprs_alt
                         #+ " Speed:" + aprs_speed + " Course:" + aprs_course 
                         + " Counter: " + str(aprs_reports)
@@ -352,11 +359,11 @@ def callback(packet):
             #print("aprs_reports:" + str(aprs_reports))
             cycletime = int(time.time() - lastcycle)
             lastcycle = time.time()
-            logger.debug( "Close and Reopen the TAK connection " + str(aprs_reports) + " reports "
+            logger.warning( "Close and Reopen the TAK connection " + str(aprs_reports) + " reports "
                 + time.strftime("%d/%m/%y %H:%M:%S ", time.gmtime()))
             #print( "Close and Reopen the TAK connection " )
             #print( str(aprs_reportsmax / cycletime ) + " Reports / sec")
-            logger.debug( str(round(aprs_reportsmax / cycletime, 2 )) + " Reports / sec")
+            logger.warning( str(round(aprs_reportsmax / cycletime, 2 )) + " Reports / sec")
 
         except:
             logger.debug("Reopen Stat Calc failed")
