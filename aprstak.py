@@ -71,12 +71,20 @@ filter_type = " -t/oimqstunw"
 #port = "14580"
 
 # Setup the aprs.is filter string
-filter_text="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + filter_type
 
 # or US wide filter
-filter_text_us="a/50/-130/20/70" + filter_type
+filter_text_us="a/50/-130/20/-70" + filter_type
 # Eastern US
-filter_text_eus="a/66/-98.6/20/70" + filter_type
+filter_text_eus="a/66/-98.6/20/-70" + filter_type
+# South Eastern US
+filter_text_seus="a/39/-90/20/-70" + filter_type
+# North Eastern US
+filter_text_neus="a/89/-87/37/-70" + filter_type
+# lat long range filter
+filter_text_ll="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + filter_type
+
+# default aprs filter unless overridden
+filter_text = filter_text_seus
 
 # APRS Login info, -1 for password means read only
 aprs_user = "KM4BA-TS"
@@ -89,13 +97,19 @@ aprs_password = "-1"
 
 server = ""
 userdir = ""
+usercheck = True
+simulate = False
 #debug = False
 # get the args
 argv=sys.argv[1:]
 
 # now parse
 try:
-    opts, args = getopt.getopt(argv,"lfdD",["debug=","max=","range=","eastus","userdir="])
+    opts, args = getopt.getopt(argv,"lfdD"
+        ,["debug=","max=","range="
+        ,"eastus","seus","neus","cus","swus","nwus"
+        ,"userdir=","simulate","nouser"
+        ])
 except getopt.GetoptError:
     print ('aprstak.py -l or -f or -d')
     sys.exit(2)
@@ -113,24 +127,33 @@ for opt, arg in opts:
         DEFAULT_LEVEL = logging.DEBUG
         logger.setLevel(DEFAULT_LEVEL)
     elif opt == "--debug":
-        if arg.upper() == "DEBUG":
+        #if arg.upper() == "DEBUG":
+        if arg[0].upper() == "D":
             logger.debug("DEBUG selected")
             DEFAULT_LEVEL = logging.DEBUG
-        elif arg.upper() == "INFO":
+        elif arg[0].upper() == "I":
             logger.debug("INFO selected")
             DEFAULT_LEVEL = logging.INFO
         logger.setLevel(DEFAULT_LEVEL)
     elif opt == "--max" and int(arg) > 0:
         aprs_reportsmax = int(arg)
+    elif opt == "--userdir":
+        userdir = arg
+    elif opt == "--simulate":
+        simulate = True
+    elif opt == "--nouser":
+        usercheck = False
     elif opt == "--range" and int(arg) > 0:
         filter_range = arg
         logger.debug("Filter range set to: " + arg)
         filter_text="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + filter_type
+        logger.debug("Filter to: " + filter_text)
     elif opt == "--eastus":
         filter_text = filter_text_eus
-        logger.debug("Filter to: " + filter_text)
-    elif opt == "--userdir":
-        userdir = arg
+    elif opt == "--seus":
+        filter_text = filter_text_seus
+    elif opt == "--neus":
+        filter_text = filter_text_neus
 
 if not server:
     # select a server, default to local
@@ -250,7 +273,7 @@ def callback(packet):
             # see if it's a real user
             #if aprs_source.startswith("K"):
             #    aprs_source = "KM4BA"
-            if aprs_source in (x[0] for x in users):
+            if usercheck and aprs_source in (x[0] for x in users):
                 logger.debug("User " + aprs_source + " found in users list")
                 for i in range(0,len(users)):
                     logger.debug("checking: " + users[i][0] + " " + users[i][1] + " " +  users[i][2])
@@ -325,15 +348,25 @@ def callback(packet):
     #logger.setLevel(logging.DEBUG)
     if cot_xml:
         try:
-
-            # flush any pending server responses
-            takserver.flush()
+            #simulate = True
+            flushtimeout=0.05
+            # flush any pending server responses (not needed?)
+            #if simulate:
+            #    logger.debug("Simulated flush")
+            #else:
+            #    takserver.flush(readtimeout=flushtimeout)
 
             # send the CoT string, server does not echo
-            takserver.send(cot_xml)
+            if simulate:
+                logger.info("Simulated Send")
+            else:
+                takserver.send(cot_xml)
 
             # flush any server responses
-            takserver.flush()
+            if simulate:
+                logger.debug("Simulated flush")
+            else:
+                takserver.flush(readtimeout=flushtimeout)
 
             # Now log the report by type
             #if sleeptime > 0.1:
