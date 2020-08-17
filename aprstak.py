@@ -28,7 +28,8 @@ DEFAULT_LEVEL = logging.WARNING
 
 #LOGGERFORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 #LOGGERFORMAT = '%(asctime)s %(levelname)s: %(message)s'
-LOGGERFORMAT = '%(levelname)s: %(message)s'
+# sparser for syslog usage
+LOGGERFORMAT = '%(message)s'
 logging.basicConfig(
     level=logging.INFO
     , format=LOGGERFORMAT
@@ -454,7 +455,7 @@ except:
     logger.error("Connect to TAK server failed")
     exit(1)
 
-logger.info("TAK Server connected: " + server + " " + TAK_IP + ":" + str(TAK_PORT) )
+logger.warning("TAK Server connected: " + server + " " + TAK_IP + ":" + str(TAK_PORT) )
 
 
 lastcycle = time.time()
