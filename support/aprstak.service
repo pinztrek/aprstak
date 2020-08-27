@@ -1,4 +1,4 @@
-# systemd serveice to start & manage FreeTAKServer
+# systemd service to start & manage FreeTAKServer
 # Author: Alan Barrow <traveler@pinztrek.com>
 # Copyright: Copyright 2020 Alan Barrow
 # License: GPL, Version 3+
@@ -25,17 +25,17 @@ StandardError=syslog
 SyslogIdentifier=aprstak
 
  Type=idle
- ExecStart=/usr/bin/python3 /home/jab/aprstak/aprstak.py -l --max=1000  --userdir="/home/jab/aprstak"
+ ExecStart=/usr/bin/python3 /home/jab/aprstak/aprstak.py -l --max=1000  --userdir='/home/jab/aprstak'
 
  Restart=always
  RestartSec=57
 
 # Safe to assume we want to run it on this server IP
-ExecStartPre=/bin/sh -c "systemctl set-environment HOST_IP=$(hostname -I | head -1)"
+#ExecStartPre=/bin/sh -c "systemctl set-environment HOST_IP=$(hostname -I | head -1)"
 
 # Edit for your IP and ports as needed
- Environment=COTPORT=8087
- Environment=DATAPORT=8080
+# Environment=COTPORT=8087
+# Environment=DATAPORT=8080
 
  [Install]
  WantedBy=multi-user.target

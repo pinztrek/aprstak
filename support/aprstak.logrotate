@@ -1,0 +1,17 @@
+/var/log/aprstak.log {
+        rotate 7
+        daily
+        compress
+        copytruncate
+        #create
+        size 10000k
+        missingok
+        prerotate
+                /bin/systemctl stop aprstak
+        endscript
+        postrotate
+                /usr/bin/pkill -HUP rsyslog
+                /bin/systemctl restart aprstak
+        endscript
+}
+

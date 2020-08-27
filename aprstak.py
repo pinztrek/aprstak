@@ -360,7 +360,24 @@ def callback(packet):
             if simulate:
                 logger.info("Simulated Send")
             else:
-                takserver.send(cot_xml)
+                try:
+                    takserver.send(cot_xml)
+                    if DEFAULT_LEVEL >= logging.WARNING:
+                        # Slow things down a bit if not printing to console
+                        #print("sleep for a bit")
+                        time.sleep(0.1)
+                except socket.timeout:
+                    logger.error("Socket Timeout- send failed")
+                    raise
+
+                except KeyboardInterrupt:
+                    #self.cleanup()
+                    raise
+
+                except:
+                    logger.error("Send failed")
+                    raise
+                    #return 1
 
             # flush any server responses
             if simulate:
@@ -388,7 +405,9 @@ def callback(packet):
                 logger.debug("APRS not useful")
 
         except:
-             logger.warning("APRS CoT push to server failed")
+            logger.warning("APRS CoT push to server failed")
+            raise
+            #return 1
 
 
     # Increment the report count            
@@ -465,12 +484,6 @@ logger.debug("Callsign: " + str(my_callsign))
 # substantiate the class
 takserver = takcot()
 
-# Now open server
-logger.debug("Opening TAK Server " + server + "----------------------------------------------------")
-testsock = takserver.open(TAK_IP,TAK_PORT)
-
-logger.debug("send a takserver connect")
-takserver.flush()  # flush the xmls the server sends (should not be any)
 
 connect_xml = mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign)
 
@@ -480,47 +493,67 @@ xml_pretty_str = my_xml.toprettyxml()
 
 logger.debug("Connect XML is: " + xml_pretty_str)
 
-# send the connect string, server does not echo
-try:
-    #takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
-    takserver.send(connect_xml)
-except:
-    logger.error("Connect to TAK server failed")
-    exit(1)
 
-logger.warning("TAK Server connected: " + server + " " + TAK_IP + ":" + str(TAK_PORT) )
 
 
 lastcycle = time.time()
 
 while True:
     try:
-        logger.debug("Connecting to APRS.is")
-        # Setup APRS Connection and connect
-        # host should be rotate.aprs.net or similar
-        AIS = aprslib.IS(aprs_user, passwd=aprs_password, host="second.aprs.net", port=14580)
-        AIS.connect()
-        logger.info("Connected to APRS.is")
+        # Now open server
+        logger.debug("Opening TAK Server " + server + "-------------------------------------------------")
+        try:
+            testsock = takserver.open(TAK_IP,TAK_PORT)
+        except:
+            logger.error("Could not open server socket")
+            raise
+            #exit(1)
+            
+
+        logger.debug("send a takserver connect")
+        takserver.flush()  # flush the xmls the server sends (should not be any)
+
+        # send the connect string, server does not echo
+        try:
+            #takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+            takserver.send(connect_xml)
+            logger.warning("TAK Server connected: " + server + " " + TAK_IP + ":" + str(TAK_PORT) )
+        except:
+            logger.error("Connect to TAK server failed")
+            raise
+            #exit(1)
+        try:
+            logger.debug("Connecting to APRS.is")
+            # Setup APRS Connection and connect
+            # host should be rotate.aprs.net or similar
+            AIS = aprslib.IS(aprs_user, passwd=aprs_password, host="second.aprs.net", port=14580)
+            AIS.connect()
+            logger.info("Connected to APRS.is")
+        except:
+            logger.error("APRS Connect failed")
+            # Sleep for a bit if failed
+            #time.sleep(57)
+            raise
+
+        # Filter and setup callback
+        try:
+            AIS.set_filter(filter_text)
+        except:
+            logger.error("APRS filter failed")
+            raise
+            #break
+
+        try:
+            # Setup callback for APRS Packets
+            AIS.consumer(callback, raw=True)
+            logger.debug("AIS Consumer exited")
+        except:
+            print("APRS consumer failed")
+            raise
+
     except:
-        logger.error("APRS Connect failed")
         # Sleep for a bit if failed
-        time.sleep(57)
-        break
+        logger.error("Sleep for a bit")
 
-    # Filter and setup callback
-    try:
-        AIS.set_filter(filter_text)
-    except:
-        logger.error("APRS filter failed")
-        break
-
-    try:
-        # Setup callback for APRS Packets
-        AIS.consumer(callback, raw=True)
-        logger.debug("AIS Consumer exited")
-    except:
-        print("APRS consumer failed")
-
-        # Sleep for a bit if failed
-        exit()
+        #exit()
         time.sleep(11)
