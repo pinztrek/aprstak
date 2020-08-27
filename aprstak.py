@@ -80,6 +80,16 @@ filter_text_eus="a/66/-98.6/20/-70" + filter_type
 filter_text_seus="a/39/-90/20/-70" + filter_type
 # North Eastern US
 filter_text_neus="a/89/-87/37/-70" + filter_type
+# South West US
+filter_text_swus="a/39/-125/20/-105" + filter_type
+# North West US
+filter_text_nwus="a/89/-126/39/-114" + filter_type
+# Central US
+filter_text_cus="a/47/-114/20/-90" + filter_type
+# West US
+filter_text_wus="a/47/-125/32/-114" + filter_type
+# AK 
+filter_text_akus="a/75/-175/50/-130" + filter_type
 # lat long range filter
 filter_text_ll="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + filter_type
 
@@ -105,9 +115,9 @@ argv=sys.argv[1:]
 
 # now parse
 try:
-    opts, args = getopt.getopt(argv,"lfdD"
+    opts, args = getopt.getopt(argv,"lfdhD"
         ,["debug=","max=","range="
-        ,"eastus","seus","neus","cus","swus","nwus"
+        ,"eastus","seus","neus","cus","swus","nwus", "wus", "akus"
         ,"userdir=","simulate","nouser"
         ])
 except getopt.GetoptError:
@@ -117,6 +127,8 @@ except getopt.GetoptError:
 for opt, arg in opts:
     if opt == '-l':
         server="local"
+    elif opt == '-h':
+        server="hardcoded"
     #elif opt in ("-i", "--ifile"):
     elif opt == '-f':
         server="fts"
@@ -154,6 +166,16 @@ for opt, arg in opts:
         filter_text = filter_text_seus
     elif opt == "--neus":
         filter_text = filter_text_neus
+    elif opt == "--nwus":
+        filter_text = filter_text_nwus
+    elif opt == "--swus":
+        filter_text = filter_text_swus
+    elif opt == "--wus":
+        filter_text = filter_text_wus
+    elif opt == "--cus":
+        filter_text = filter_text_cus
+    elif opt == "--akus":
+        filter_text = filter_text_akus
 
 if not server:
     # select a server, default to local
@@ -169,9 +191,16 @@ elif server.startswith("D"):
     TAK_IP = os.getenv('TAK_IP', '128.199.70.11')
     TAK_PORT = 48088
     server = "DISCORD"
+
+elif server.startswith("H"):
+    TAK_IP = '172.16.30.30'
+    TAK_PORT = 8087
+    server = "Hardcoded"
+
 else:
     # use the local server for default
-    TAK_IP = '172.16.30.30'
+    #TAK_IP = '172.16.30.30'
+    TAK_IP = str(socket.gethostbyname(socket.gethostname()))
     TAK_PORT = 8087
     server = "Local"
 
