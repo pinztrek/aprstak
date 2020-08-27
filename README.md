@@ -59,13 +59,13 @@ aprs_password = "-1"
 Typical run string would be:
 
 ### Run on local system, info level logging, NE US zone
-python3 aprstak.py -l --info --neus
+python3 aprstak.py -l --logging=info --neus
 
 ### Run on FTS Public instance, warning level logging, NW US zone
-python3 aprstak.py -f --warning --nwus
+python3 aprstak.py -f --logging=warning --nwus
 
 ### Run on Discord Public server, debug level logging, SE US zone, reconnect TAK every 100 CoTs sent
-python3 aprstak.py -d --debug --seus --max=100
+python3 aprstak.py -d --logging=debug --seus --max=100
 
 ### Run on hardcoded server IP, centered around a hardcoded Lat/Long, with a 100 mile range
 python3 aprstak.py -h --range=100

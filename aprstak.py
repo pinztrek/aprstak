@@ -115,7 +115,7 @@ argv=sys.argv[1:]
 
 # now parse
 try:
-    opts, args = getopt.getopt(argv,"lfdhD"
+    opts, args = getopt.getopt(argv,"lfdhDI"
         ,["debug=","max=","range="
         ,"eastus","seus","neus","cus","swus","nwus", "wus", "akus"
         ,"userdir=","simulate","nouser"
@@ -138,6 +138,10 @@ for opt, arg in opts:
         print("DEBUG selected")
         DEFAULT_LEVEL = logging.DEBUG
         logger.setLevel(DEFAULT_LEVEL)
+    if opt == "-I":
+        print("INFO selected")
+        DEFAULT_LEVEL = logging.INFO
+        logger.setLevel(DEFAULT_LEVEL)
     elif opt == "--debug":
         #if arg.upper() == "DEBUG":
         if arg[0].upper() == "D":
@@ -146,6 +150,12 @@ for opt, arg in opts:
         elif arg[0].upper() == "I":
             logger.debug("INFO selected")
             DEFAULT_LEVEL = logging.INFO
+        elif arg[0].upper() == "W":
+            logger.debug("WARNING selected")
+            DEFAULT_LEVEL = logging.WARNING
+        elif arg[0].upper() == "E":
+            logger.debug("ERROR selected")
+            DEFAULT_LEVEL = logging.ERROR
         logger.setLevel(DEFAULT_LEVEL)
     elif opt == "--max" and int(arg) > 0:
         aprs_reportsmax = int(arg)
