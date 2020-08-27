@@ -11,13 +11,21 @@ This program is the first step of integrating the APRS world with TAK and specif
 
 
 ## Build status
-The aprstak code is in ugly but functioning state, but continues to evolve/improve. What works:
+The aprstak code is in ugly but functioning state, but continues to evolve/improve. 
+### What works:
 * Injection of APRS position reports from APRS.IS into TAK server using TAK standard CoT XML
 * Selection of 2 public TAK servers, a local (same IP) server, or a hardcoded IP/port
 * Selection of US regional zones, a hardcoded Lat/Long, and optional radius for LL based reports
 * Multiple debugging levels
 * systemd service to run the program
 * logrotate config file to rotate the logs
+
+### What's next:
+* extension of takpak.takcot() to return commonly used params from a received CoT
+* establishment of a "last heard" TAK user/callsign queue with key params (callsign, UID, team). This will be seeded by user.json. 
+* ongoing read/parse of CoT's between aprs sending events. Or a threaded approach. This is critical to maintaining the user list.
+* parsing of APRS messages and sending as GeoChat to matching users online in TAK
+* Potential initiation of outbound APRS message if a GeoChat to a whitelisted user is detected from the server
 
 ## Features
 Currently aprstak just injects APRS position reports into a TAK server:
