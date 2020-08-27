@@ -4,14 +4,14 @@
 
 ## Motivation
 This program is the first step of integrating the APRS world with TAK and specifically ATAK. Goals:
-* Utilize existing APRS tools and infrastructure
+* Utilize existing APRS tools and infrastructure (APRS.IS, aprslib, etc)
 * Allow update of ATAK user positions (PLIs) based on APRS and similar (HF ALE) amateur radio based reports
 * (Long term) Allow APRS generated messages to be sent to stations also on ATAK
 * (Long term) Allow the use of APRS radio connection to feed in/out of local ATAK users. IE: use APRS for transport for a narrow subset of TAK CoT's. (PLI and GeoChat)
 
 
 ## Build status
-The code is in funcitonal state, but continues to evolve/improve. What works:
+The aprstak code is in ugly but functioning state, but continues to evolve/improve. What works:
 * Injection of APRS position reports from APRS.IS into TAK server using TAK standard CoT XML
 * Selection of 2 public TAK servers, a local (same IP) server, or a hardcoded IP/port
 * Selection of US regional zones, a hardcoded Lat/Long, and optional radius for LL based reports
