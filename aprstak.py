@@ -116,7 +116,7 @@ argv=sys.argv[1:]
 # now parse
 try:
     opts, args = getopt.getopt(argv,"lfdhDI"
-        ,["debug=","max=","range="
+        ,["logging=","max=","range="
         ,"eastus","seus","neus","cus","swus","nwus", "wus", "akus"
         ,"userdir=","simulate","nouser"
         ])
@@ -142,7 +142,7 @@ for opt, arg in opts:
         print("INFO selected")
         DEFAULT_LEVEL = logging.INFO
         logger.setLevel(DEFAULT_LEVEL)
-    elif opt == "--debug":
+    elif opt == "--logging":
         #if arg.upper() == "DEBUG":
         if arg[0].upper() == "D":
             logger.debug("DEBUG selected")
