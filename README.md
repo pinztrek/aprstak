@@ -31,6 +31,7 @@ Currently aprstak just injects APRS position reports into a TAK server:
 ## Prerequisites
 * python 3.x. In fact, the libraries and code will give very non-intuitive "almost working" behavior sometimes under older pythons. Main development was on 3.8.
 * takpak https://github.com/pinztrek/takpak
+* aprslib https://github.com/rossengeorgiev/aprs-python
 
 ## Installation
 No specific installation is required once takpak & aprslib is installed on the system you plan to execute the code from. 
