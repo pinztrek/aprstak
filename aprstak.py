@@ -2,11 +2,20 @@
 
 import logging
 import time
-#from time import sleep,gmtime,strftime
 import os
 import sys, getopt
 import socket
 import uuid
+
+# center of the US
+#filter_lat = "39.8283"
+#filter_lon = "-98.5795"
+
+#import takcot. Note this only works if you have installed the package
+#   If you have not installed as a package, you may have to tune your imports
+#   to be local to where your source is
+from takpak.mkcot import mkcot
+from takpak.takcot import takcot
 
 
 from sys import version_info
@@ -15,7 +24,6 @@ from  xml.dom.minidom import parseString
 
 import aprslib
 
-#import xml.etree.ElementTree as ET
 
 # Bail if not python 3 or later
 #if sys.version_info.major < 3:
@@ -25,9 +33,6 @@ if version_info.major < 3:
 
 # Setup Logging
 DEFAULT_LEVEL = logging.WARNING
-
-#LOGGERFORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-#LOGGERFORMAT = '%(asctime)s %(levelname)s: %(message)s'
 # sparser for syslog usage
 LOGGERFORMAT = '%(message)s'
 logging.basicConfig(
@@ -40,202 +45,188 @@ logger = logging.getLogger(__name__)
 # Seset the default logging level
 logger.setLevel(DEFAULT_LEVEL)
 
-#import takcot. Note this only works if you have installed the package
-#   If you have not installed as a package, you may have to tune your imports
-#   to be local to where your source is
-from takpak.mkcot import mkcot
-from takpak.takcot import takcot
+region_filters = {
+    "us": "a/50/-130/20/-70",
+    "eus": "a/66/-98.6/20/-70",
+    "seus": "a/39/-90/20/-70",
+    "neus": "a/89/-87/37/-70",
+    "swus": "a/39/-125/20/-105",
+    "nwus": "a/89/-126/39/-114",
+    "cus": "a/47/-114/20/-90",
+    "wus": "a/47/-125/32/-114",
+    "akus": "a/75/-175/50/-130"
+}
 
+server_dict = {
+    "F": {
+        "TAK_IP": '204.48.30.216',
+        "TAK_PORT": 8087,
+        "server": "FTS"
+    },
+    "D": {
+        "TAK_IP": '128.199.70.11',
+        "TAK_PORT": 48088,
+        "server": "discord"
+    },
+    "H": {
+        "TAK_IP": '3.128.189.157',
+        "TAK_PORT": 8087,
+        "server": "hardcoded"
+    },
+    "L": {
+        "TAK_IP": str(socket.gethostbyname(socket.gethostname())),
+        "TAK_PORT": 8087,
+        "server": "local"
+    }
+}
 
-sleeptime = 0.075
-aprs_reportsmax = 10000
+users = []
+lastcycle = time.time()
 
-# Filter values for the APRS Feed
-filter_range = "300"
-# Atlanta (SE US)
-filter_lat = "33.98"
-filter_lon = "-84.650"
-# center of the US
-#filter_lat = "39.8283"
-#filter_lon = "-98.5795"
-filter_type = " -t/oimqstunw"
+def getconf():
+    with open('support/config.json') as json_file:
+        conf = json.load(json_file)
+        return conf
 
-# or US wide filter
-#filter_text="a/50/-130/20/70" + filter_type
-# Eastern US
-#filter_text="a/66/-98.6/20/70" + filter_type
+def setup(conf):
+    # default aprs filter unless overridden
+    filter_text = region_filters["seus"]
+    # APRS Login info, -1 for password means read only
+    aprs_password = "-1"
+    server = ""
+    userdir = ""
+    region = ""
+    # get the args
+    argv=sys.argv[1:]
+    filter_type = conf["filter_type"]
 
-
-# APRS server, should use the load balancing ones
-#host = "noam.aprs2.net"
-#port = "14580"
-
-# Setup the aprs.is filter string
-
-# or US wide filter
-filter_text_us="a/50/-130/20/-70" + filter_type
-# Eastern US
-filter_text_eus="a/66/-98.6/20/-70" + filter_type
-# South Eastern US
-filter_text_seus="a/39/-90/20/-70" + filter_type
-# North Eastern US
-filter_text_neus="a/89/-87/37/-70" + filter_type
-# South West US
-filter_text_swus="a/39/-125/20/-105" + filter_type
-# North West US
-filter_text_nwus="a/89/-126/39/-114" + filter_type
-# Central US
-filter_text_cus="a/47/-114/20/-90" + filter_type
-# West US
-filter_text_wus="a/47/-125/32/-114" + filter_type
-# AK 
-filter_text_akus="a/75/-175/50/-130" + filter_type
-# lat long range filter
-filter_text_ll="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + filter_type
-
-# default aprs filter unless overridden
-filter_text = filter_text_seus
-
-# APRS Login info, -1 for password means read only
-aprs_user = "KM4BA-TS"
-aprs_password = "-1"
-
-# APRS server, should use the load balancing ones
-#host = "noam.aprs2.net"
-#port = "14580"
-
-
-server = ""
-userdir = ""
-usercheck = True
-simulate = False
-#debug = False
-# get the args
-argv=sys.argv[1:]
-
-# now parse
-try:
-    opts, args = getopt.getopt(argv,"lfdhDI"
-        ,["logging=","max=","range="
-        ,"eastus","seus","neus","cus","swus","nwus", "wus", "akus"
-        ,"userdir=","simulate","nouser"
-        ])
-except getopt.GetoptError:
-    print ('aprstak.py -l or -f or -d')
-    sys.exit(2)
-
-for opt, arg in opts:
-    if opt == '-l':
-        server="local"
-    elif opt == '-h':
-        server="hardcoded"
-    #elif opt in ("-i", "--ifile"):
-    elif opt == '-f':
-        server="fts"
-    elif opt == '-d':
-        server="discord"
-    if opt == "-D":
-        print("DEBUG selected")
-        DEFAULT_LEVEL = logging.DEBUG
-        logger.setLevel(DEFAULT_LEVEL)
-    if opt == "-I":
-        print("INFO selected")
-        DEFAULT_LEVEL = logging.INFO
-        logger.setLevel(DEFAULT_LEVEL)
-    elif opt == "--logging":
-        #if arg.upper() == "DEBUG":
-        if arg[0].upper() == "D":
-            logger.debug("DEBUG selected")
-            DEFAULT_LEVEL = logging.DEBUG
-        elif arg[0].upper() == "I":
-            logger.debug("INFO selected")
-            DEFAULT_LEVEL = logging.INFO
-        elif arg[0].upper() == "W":
-            logger.debug("WARNING selected")
-            DEFAULT_LEVEL = logging.WARNING
-        elif arg[0].upper() == "E":
-            logger.debug("ERROR selected")
-            DEFAULT_LEVEL = logging.ERROR
-        logger.setLevel(DEFAULT_LEVEL)
-    elif opt == "--max" and int(arg) > 0:
-        aprs_reportsmax = int(arg)
-    elif opt == "--userdir":
-        userdir = arg
-    elif opt == "--simulate":
-        simulate = True
-    elif opt == "--nouser":
-        usercheck = False
-    elif opt == "--range" and int(arg) > 0:
-        filter_range = arg
-        logger.debug("Filter range set to: " + arg)
-        filter_text="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + filter_type
-        logger.debug("Filter to: " + filter_text)
-    elif opt == "--eastus":
-        filter_text = filter_text_eus
-    elif opt == "--seus":
-        filter_text = filter_text_seus
-    elif opt == "--neus":
-        filter_text = filter_text_neus
-    elif opt == "--nwus":
-        filter_text = filter_text_nwus
-    elif opt == "--swus":
-        filter_text = filter_text_swus
-    elif opt == "--wus":
-        filter_text = filter_text_wus
-    elif opt == "--cus":
-        filter_text = filter_text_cus
-    elif opt == "--akus":
-        filter_text = filter_text_akus
-
-if not server:
-    # select a server, default to local
-    server = input('Server? local is default, "FTS" or "DISCORD" uses those public servers: ')
-server = server.upper()
-
-if server.startswith("F"):
-    TAK_IP = os.getenv('TAK_IP', '204.48.30.216')
-    TAK_PORT = int(os.getenv('TAK_PORT', '8087'))
-    server = "FTS"
-
-elif server.startswith("D"):
-    TAK_IP = os.getenv('TAK_IP', '128.199.70.11')
-    TAK_PORT = 48088
-    server = "DISCORD"
-
-elif server.startswith("H"):
-    TAK_IP = '172.16.30.30'
-    TAK_PORT = 8087
-    server = "Hardcoded"
-
-else:
-    # use the local server for default
-    #TAK_IP = '172.16.30.30'
-    TAK_IP = str(socket.gethostbyname(socket.gethostname()))
-    TAK_PORT = 8087
-    server = "Local"
-
-logger.debug(server + " Server selected " + TAK_IP + ":" + str(TAK_PORT))
-
-
-#open the users list
-userfile = "users.json"
-if userdir:
-    userfile = userdir + "/" + userfile
-    logger.warning("userfile is " + userfile)
-try:
-    f = open(userfile, "r+")
+    # now parse
     try:
-        users = json.load(f)
-        logger.warning("Initial Users loaded")
-        logger.debug(users)
+        opts, args = getopt.getopt(argv,"lfdhDI"
+            ,["logging=","max=","range="
+            ,"eus","seus","neus","cus","swus","nwus", "wus", "akus"
+            ,"userdir=","simulate","nouser","filter_lat","filter_lon"
+            ])
+    except getopt.GetoptError:
+        print ('aprstak.py -l or -f or -d')
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt == '-l':
+            server="local"
+        elif opt == '-h':
+            server="hardcoded"
+        elif opt == '-f':
+            server="fts"
+        elif opt == '-d':
+            server="discord"
+        if opt == "-D":
+            print("DEBUG selected")
+            DEFAULT_LEVEL = logging.DEBUG
+            logger.setLevel(DEFAULT_LEVEL)
+        if opt == "-I":
+            print("INFO selected")
+            DEFAULT_LEVEL = logging.INFO
+            logger.setLevel(DEFAULT_LEVEL)
+        elif opt == "--logging":
+            #if arg.upper() == "DEBUG":
+            if arg[0].upper() == "D":
+                logger.debug("DEBUG selected")
+                DEFAULT_LEVEL = logging.DEBUG
+            elif arg[0].upper() == "I":
+                logger.debug("INFO selected")
+                DEFAULT_LEVEL = logging.INFO
+            elif arg[0].upper() == "W":
+                logger.debug("WARNING selected")
+                DEFAULT_LEVEL = logging.WARNING
+            elif arg[0].upper() == "E":
+                logger.debug("ERROR selected")
+                DEFAULT_LEVEL = logging.ERROR
+            logger.setLevel(DEFAULT_LEVEL)
+        elif opt == "--max" and int(arg) > 0:
+            aprs_reportsmax = int(arg)
+        elif opt == "--userdir":
+            conf["userdir"] = arg
+        elif opt == "--simulate":
+            conf["simulate"] = True
+        elif opt == "--nouser":
+            conf["usercheck"] = False
+        elif opt == "--range" and int(arg) > 0:
+            filter_range = arg
+            logger.debug("Filter range set to: " + arg)
+            filter_lat = conf["filter_lat"] if len(conf["filter_lat"] > 0) else input("Enter filter latitude: ") 
+            filter_lon = conf["filter_lon"] if len(conf["filter_lon"] > 0) else input("Enter filter longitude: ")
+            filter_text="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + " -t/" + filter_type
+            conf["filter_lat"] = filter_lat
+            conf["filter_lon"] = filter_lon
+            logger.debug("Filter to: " + filter_text)
+        elif opt == "--eus":
+            region = "eus"
+        elif opt == "--seus":
+            region = "seus"
+        elif opt == "--neus":
+            region = "neus"
+        elif opt == "--nwus":
+            region = "nwus"
+        elif opt == "--swus":
+            region = "swus"
+        elif opt == "--wus":
+            region = "wus"
+        elif opt == "--cus":
+            region = "cus"
+        elif opt == "--akus":
+            region = "akus"
+
+    if len(region) > 0:
+        conf["region"] = region
+    #default seus
+    else: 
+        conf["region"] = "seus"
+
+    if filter_text:
+        conf["filter_text"] = filter_text
+    else: 
+        conf["filter_text"] = region_filters[region] + " -t/" + conf["filter_type"]
+
+    if not server:
+        # select a server, default to local
+        print("No server info provided, using config")
+    else:
+        server = server.upper()
+        server_select = server[0]
+        conf["TAK_IP"] = server_dict[server_select]["TAK_IP"]
+        conf["TAK_PORT"] = server_dict[server_select]["TAK_PORT"]
+        conf["server"] = server
+
+    logger.debug(server + " Server selected " + conf["TAK_IP"] + ":" + str(conf["TAK_PORT"]))
+    do_save = input("Do you wish to save these settings for future runs? y/n: ")
+    if do_save == 'y':
+        with open("support/config.json", 'w') as json_file:
+            print(conf)
+            json.dump(conf, json_file, indent=4, sort_keys=True)
+
+def getUsers(conf):
+    #open the users list
+    userfile = "users.json"
+    userdir = conf["userdir"]
+
+    if len(userdir) > 0:
+        userfile = userdir + "/" + userfile
+        logger.warning("userfile is " + userfile)
+    try:
+        f = open(userfile, "r+")
+        try:
+            users = json.load(f)
+            logger.warning("Initial Users loaded")
+            logger.debug(users)
+        except:
+            logger.warning("users json load failed")
+            users = []
+        finally:
+            f.close()
     except:
-        logger.warning("users json load failed")
         users = []
-    finally:
-        f.close()
-except:
-    users = []
-    logger.warning("Users file open failed, resetting")
+        logger.warning("Users file open failed, resetting")
 
 # initialize aprs_reports
 aprs_reports = 1
@@ -246,6 +237,12 @@ def callback(packet):
     global aprs_reportsmax
     global lastcycle
     global taksock
+
+    conf = getconf()
+    server = conf["server"]
+    aprs_reportsmax = conf["aprs_reportsmax"]
+    simulate = conf["simulate"]
+    usercheck = conf["usercheck"]
 
     #if PAUSE:
     #    return()
@@ -306,6 +303,7 @@ def callback(packet):
 
     #logger.setLevel(logging.DEBUG)
     logger.setLevel(DEFAULT_LEVEL)
+    cot_xml = ""
     # Now try to make the CoT -------------------------------------------
     try:
         if aprs_source and aprs_lat and aprs_lon:
@@ -360,11 +358,10 @@ def callback(packet):
             except:
                 logger.debug("mkcot failed")
         else:
-            logger.info("Not useful APRS: " + packet)
+            logger.info("Not useful APRS: " + str(packet))
             pass
     except:
-        logger.debug("CoT creation failed: " +packet)
-        cot_xml=""
+        logger.debug("CoT creation failed: " + str(packet))
         return  
 
     if cot_xml:
@@ -426,7 +423,7 @@ def callback(packet):
 
             # Now log the report by type
             #if sleeptime > 0.1:
-            if True and aprs_source and aprs_lat and aprs_lon:
+            if aprs_source and aprs_lat and aprs_lon:
                 if aprs_point:
                     logger.info("Station: " + aprs_source 
                         + " Lat:" + aprs_lat + " Lon:" + aprs_lon + " Alt:" + aprs_alt
@@ -508,91 +505,104 @@ def callback(packet):
 # Main Program
 
 # Setup a UID
-my_uid = str(socket.getfqdn())
-my_uid = my_uid + "-" + str(uuid.uuid1())
-#my_uid = bytes("APRS_inject-" + my_uid,"UTF-8")
-my_uid = ("APRS_inject-" + my_uid)
-#print(my_uid)
 
-taksock="" # this is a global
+if __name__ == "__main__":
+    conf = getconf()
+    setup(conf)
+    getUsers(conf)
+    my_uid = str(socket.getfqdn())
+    my_uid = my_uid + "-" + str(uuid.uuid1())
+    #my_uid = bytes("APRS_inject-" + my_uid,"UTF-8")
+    my_uid = ("APRS_inject-" + my_uid)
+    #print(my_uid)
 
-# Setup a callsign for the main process
-my_callsign = "APRS-" + my_uid[-6:]
-logger.debug("Callsign: " + str(my_callsign))
+    taksock="" # this is a global
 
-# substantiate the class
-takserver = takcot()
+    # Setup a callsign for the main process
+    my_callsign = "APRS-" + my_uid[-6:]
+    logger.debug("Callsign: " + str(my_callsign))
 
+    # substantiate the class
+    takserver = takcot()
 
-connect_xml = mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign)
+    connect_xml = mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign)
 
-my_xml = connect_xml.decode('utf-8')
-my_xml = parseString(str(my_xml.replace("\n","")))
-xml_pretty_str = my_xml.toprettyxml()
+    my_xml = connect_xml.decode('utf-8')
+    my_xml = parseString(str(my_xml.replace("\n","")))
+    xml_pretty_str = my_xml.toprettyxml()
 
-logger.debug("Connect XML is: " + xml_pretty_str)
+    logger.debug("Connect XML is: " + xml_pretty_str)
 
+    TAK_IP = conf["TAK_IP"]
+    TAK_PORT = conf["TAK_PORT"]
+    server = conf["server"]
+    aprs_user = conf["aprs_user"]
+    aprs_password = "-1"
+    filter_text = conf["filter_text"]
+    
+    print(filter_text)
 
+    lastcycle = time.time()
 
-
-lastcycle = time.time()
-
-while True:
-    try:
-        # Now open server
-        logger.debug("Opening TAK Server " + server + "-------------------------------------------------")
+    while True:
         try:
-            testsock = takserver.open(TAK_IP,TAK_PORT)
-        except:
-            logger.error("Could not open server socket")
-            raise
-            #exit(1)
-            
+            # Now open server
+            logger.debug("Opening TAK Server " + server + "-------------------------------------------------")
+            try:
+                print(TAK_IP)
+                testsock = takserver.open(TAK_IP,TAK_PORT)
+            except:
+                logger.error("Could not open server socket")
+                raise
+                #exit(1)
+                
 
-        logger.debug("send a takserver connect")
-        takserver.flush()  # flush the xmls the server sends (should not be any)
+            logger.debug("send a takserver connect")
+            takserver.flush()  # flush the xmls the server sends (should not be any)
 
-        # send the connect string, server does not echo
-        try:
-            #takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
-            takserver.send(connect_xml)
-            logger.warning("TAK Server connected: " + server + " " + TAK_IP + ":" + str(TAK_PORT) )
-        except:
-            logger.error("Connect to TAK server failed")
-            raise
-            #exit(1)
-        try:
-            logger.debug("Connecting to APRS.is")
-            # Setup APRS Connection and connect
-            # host should be rotate.aprs.net or similar
-            AIS = aprslib.IS(aprs_user, passwd=aprs_password, host="second.aprs.net", port=14580)
-            AIS.connect()
-            logger.info("Connected to APRS.is")
-        except:
-            logger.error("APRS Connect failed")
+            # send the connect string, server does not echo
+            try:
+                #takserver.send(mkcot.mkcot(cot_type="t", cot_how="h-g-i-g-o", cot_callsign=my_callsign))
+                takserver.send(connect_xml)
+                logger.warning("TAK Server connected: " + server + " " + TAK_IP + ":" + str(TAK_PORT) )
+            except:
+                logger.error("Connect to TAK server failed")
+                raise
+                #exit(1)
+            try:
+                logger.debug("Connecting to APRS.is")
+                # Setup APRS Connection and connect
+                # host should be rotate.aprs.net or similar
+                AIS = aprslib.IS(aprs_user, passwd=aprs_password, host="second.aprs.net", port=14580)
+                AIS.connect()
+                logger.info("Connected to APRS.is")
+            except:
+                logger.error("APRS Connect failed")
+                # Sleep for a bit if failed
+                #time.sleep(57)
+                raise
+
+            # Filter and setup callback
+            try:
+                AIS.set_filter(filter_text)
+            except:
+                logger.error("APRS filter failed")
+                raise
+                #break
+
+            try:
+                # Setup callback for APRS Packets
+                AIS.consumer(callback, raw=True)
+                logger.debug("AIS Consumer exited")
+            except Exception as exc:
+                logger.error(exc)
+                print("APRS consumer failed")
+                raise
+
+        except Exception as exc:
             # Sleep for a bit if failed
-            #time.sleep(57)
-            raise
+            logger.error(exc)
+            logger.error("Sleep for a bit")
 
-        # Filter and setup callback
-        try:
-            AIS.set_filter(filter_text)
-        except:
-            logger.error("APRS filter failed")
-            raise
-            #break
-
-        try:
-            # Setup callback for APRS Packets
-            AIS.consumer(callback, raw=True)
-            logger.debug("AIS Consumer exited")
-        except:
-            print("APRS consumer failed")
-            raise
-
-    except:
-        # Sleep for a bit if failed
-        logger.error("Sleep for a bit")
-
-        #exit()
-        time.sleep(11)
+            #exit()
+            time.sleep(11)
