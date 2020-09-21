@@ -82,6 +82,10 @@ server_dict = {
 
 users = []
 lastcycle = time.time()
+server = ""
+simulate = False
+aprs_reportsmax = 10000
+usercheck = True
 
 def getconf():
     with open('support/config.json') as json_file:
@@ -92,7 +96,6 @@ def setup(conf):
     # default aprs filter unless overridden
     filter_text = region_filters["seus"]
     # APRS Login info, -1 for password means read only
-    aprs_password = "-1"
     server = ""
     userdir = ""
     region = ""
@@ -148,7 +151,7 @@ def setup(conf):
         elif opt == "--userdir":
             conf["userdir"] = arg
         elif opt == "--simulate":
-            conf["simulate"] = True
+            simulate = True
         elif opt == "--nouser":
             conf["usercheck"] = False
         elif opt == "--range" and int(arg) > 0:
@@ -240,10 +243,7 @@ def callback(packet):
     global taksock
 
     conf = getconf()
-    server = conf["server"]
-    aprs_reportsmax = conf["aprs_reportsmax"]
-    simulate = conf["simulate"]
-    usercheck = conf["usercheck"]
+    
 
     #if PAUSE:
     #    return()
