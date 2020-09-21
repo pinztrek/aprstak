@@ -1,0 +1,17 @@
+{
+    "TAK_IP": "3.128.189.157",
+    "TAK_PORT": 8087,
+    "aprs_reportsmax": 10000,
+    "aprs_user": "jfink",
+    "filter_lat": "",
+    "filter_lon": "",
+    "filter_text": "r/39.8283/-84.650/100 -t/oimqstunw",
+    "filter_type": "oimqstunw",
+    "fts_db_path": "",
+    "region": "seus",
+    "server": "HARDCODED",
+    "simulate": false,
+    "sleeptime": 0.075,
+    "usercheck": true,
+    "userdir": ""
+}    
