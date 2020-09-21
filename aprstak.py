@@ -198,12 +198,13 @@ def setup(conf):
         conf["TAK_PORT"] = server_dict[server_select]["TAK_PORT"]
         conf["server"] = server
 
-    logger.debug(server + " Server selected " + conf["TAK_IP"] + ":" + str(conf["TAK_PORT"]))
-    do_save = input("Do you wish to save these settings for future runs? y/n: ")
-    if do_save == 'y':
-        with open("support/config.json", 'w') as json_file:
-            print(conf)
-            json.dump(conf, json_file, indent=4, sort_keys=True)
+    if(len(opts) > 0):
+        logger.debug(server + " Server selected " + conf["TAK_IP"] + ":" + str(conf["TAK_PORT"]))
+        do_save = input("Do you wish to save these settings for future runs? y/n: ")
+        if do_save == 'y':
+            with open("support/config.json", 'w') as json_file:
+                print(conf)
+                json.dump(conf, json_file, indent=4, sort_keys=True)
 
 def getUsers(conf):
     #open the users list
