@@ -97,7 +97,7 @@ filter_text_ll="r/" + filter_lat + "/" + filter_lon + "/" + filter_range + filte
 filter_text = filter_text_seus
 
 # APRS Login info, -1 for password means read only
-aprs_user = "KM4BA-TS"
+aprs_user = "URCALL-TS"
 aprs_password = "-1"
 
 # APRS server, should use the load balancing ones
